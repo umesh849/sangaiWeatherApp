@@ -183,7 +183,7 @@ class WeatherUI(BoxLayout):
         )
         layout.add_widget(lbl)
         popup = Popup(
-            title="⚠ Weather Alert",
+            title="Weather Alert",
             content=layout,
             size_hint=(None, None),
             size=(420, 400),
