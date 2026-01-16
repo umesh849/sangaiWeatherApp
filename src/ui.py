@@ -1,7 +1,8 @@
 from kivy.config import Config
-Config.set('graphics', 'width', '360')   
+Config.set('graphics', 'width', '360')
 Config.set('graphics', 'height', '540')
 
+from kivy.clock import Clock
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.popup import Popup
@@ -9,102 +10,41 @@ from kivy.uix.label import Label
 from kivy.lang import Builder
 from kivy.properties import NumericProperty, StringProperty
 from kivy.core.text import LabelBase
+from kivy.network.urlrequest import UrlRequest
+
+import json
+#Change the ip address
+SERVER_IP = "192.168.1.3"
+API_URL = f"http://{SERVER_IP}:8000/predict"
 
 LabelBase.register(
     name="Meitei",
     fn_regular="fonts/NotoSansMeeteiMayek-Medium.ttf"
 )
+
 Builder.load_file("src/ui.kv")
 
 weather_data = {
-  "location": {
-    "lat": 24.8039,
-    "lon": 93.9420,
-    "district": "Imphal East"
-  },
-
-  "timestamp": "2026-01-15T22:30:45+05:30",
-
-  "observed_weather": {
-    "temperature_c": 32.4,
-    "pressure_hpa": 1006,
-    "humidity_percent": 71,
-    "wind_speed_mps": 3.2
-  },
-    "today": {
-        "temp_max": 32,
-        "temp_min": 28,
-        "rainfall_mm": 150,
-        "humidity": 65,
-        "wind_speed": 14
-    },
-    "tomorrow": {
-        "temp_max": 30,
-        "temp_min": 25,
-        "rainfall_mm": 120,
-        "humidity": 58,
-        "wind_speed": 10
-    },
-    "day_after": {
-        "temp_max": 29,
-        "temp_min": 24,
-        "rainfall_mm": 134,
-        "humidity": 70,
-        "wind_speed": 18
-    },
-    
-  
-  "weather_prediction": {
-    "rainfall_mm": 78.4
-  },
-
-  "warnings": {
-    "heatwave": {
-      "severity": "NONE",
-      "reason": "Conditions not met"
-    },
-    "coldwave": {
-      "severity": "NONE",
-      "reason": "Conditions not met"
-    },
-    "thunderstorm": {
-      "severity": "MODERATE",
-      "reason": "High moisture, cloud buildup and pressure drop"
-    },
-    "hailstorm": {
-      "severity": "NONE",
-      "reason": "No hail-favorable dynamics"
-    }
-  },
-
-  "risk_assessment": {
-    "flood": {
-      "probability": 0.82,
-      "risk_level": "HIGH"
-    },
-    "landslide": {
-      "probability": 0.61,
-      "risk_level": "MODERATE"
-    },
-    "earthquake": {
-      "zone": "HIGH"
-    }
-  },
-
-  "overall_alert": "SEVERE"
+    "today": {"temp_max": 0, "temp_min": 0, "rainfall_mm": 0, "humidity": 0, "wind_speed": 0},
+    "tomorrow": {"temp_max": 0, "temp_min": 0, "rainfall_mm": 0, "humidity": 0, "wind_speed": 0},
+    "day_after": {"temp_max": 0, "temp_min": 0, "rainfall_mm": 0, "humidity": 0, "wind_speed": 0},
+    "warnings": {},
+    "overall_alert": "NORMAL"
 }
 
+
 class WeatherUI(BoxLayout):
+
     today_temp_max = NumericProperty(0)
     today_temp_min = NumericProperty(0)
     tomorrow_temp_max = NumericProperty(0)
     tomorrow_temp_min = NumericProperty(0)
     day_after_temp_max = NumericProperty(0)
     day_after_temp_min = NumericProperty(0)
-    # change this for integer
-    today_rain = NumericProperty(0)
-    tomorrow_rain = NumericProperty(0)
-    day_after_rain = NumericProperty(0)
+
+    today_rainfall_mm = NumericProperty(0)
+    tomorrow_rainfall_mm = NumericProperty(0)
+    day_after_rainfall_mm = NumericProperty(0)
 
     lang = StringProperty("en")
 
@@ -114,12 +54,12 @@ class WeatherUI(BoxLayout):
             "forecast": "Weather Forecast",
             "today": "TODAY",
             "tomorrow": "Tomorrow",
-            "day_after":"Day After Tomorrow",
+            "day_after": "Day After Tomorrow",
             "temp": "Temperature",
             "rainfall_mm": "Rainfall",
             "more": "More Info"
         },
-        "mni": {    
+        "mni": {
             "title": "ꯁꯥꯡꯒꯥꯏ ꯋꯦꯗꯔ",
             "forecast": "ꯋꯦꯗꯔ ꯐꯣꯔꯀꯥꯁ꯭ꯇ",
             "today": "ꯅꯨꯡꯁꯤ",
@@ -137,81 +77,129 @@ class WeatherUI(BoxLayout):
     def switch_lang(self):
         self.lang = "mni" if self.lang == "en" else "en"
 
+    
+
+    def send_location(self):
+        print("SENDING POST REQUEST")  
+
+        payload = {
+            "lat": 24.8039,
+            "lon": 93.9420,
+            "district": "Imphal East",
+            "rainfall_3d": None,
+            "soil_moisture": 0.4,
+            "slope": 10,
+            "elevation": 500
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        UrlRequest(
+            API_URL,
+            req_body=json.dumps(payload).encode("utf-8"),
+            req_headers=headers,
+            on_success=self.on_success,
+            on_error=self.on_error,
+            on_failure=self.on_failure,
+            method="POST",
+            timeout=10
+        )
+
+
+
+    def on_success(self, req, result):
+        global weather_data
+        weather_data = result
+        self.set_data()
+        self.check_warnings()
+
+    def on_error(self, req, error):
+        self.show_popup(f"Server Error:\n{error}")
+
+    def on_failure(self, req, result):
+        self.show_popup("Cannot connect to FastAPI server\nCheck WiFi / Firewall / IP")
+
     def get_data(self):
         return weather_data
-    
+
     def set_data(self):
-        self.today_temp_max = self.get_data()["today"]["temp_max"]
-        self.today_temp_min = self.get_data()["today"]["temp_min"]
-        self.today_rainfall_mm = self.get_data()["today"]["rainfall_mm"]
-        self.tomorrow_temp_max = self.get_data()["tomorrow"]["temp_max"]
-        self.tomorrow_temp_min = self.get_data()["tomorrow"]["temp_min"]
-        self.tomorrow_rainfall_mm = self.get_data()["tomorrow"]["rainfall_mm"]    
-        self.day_after_temp_max = self.get_data()["day_after"]["temp_max"]
-        self.day_after_temp_min = self.get_data()["day_after"]["temp_min"]
-        self.day_after_rainfall_mm = self.get_data()["day_after"]["rainfall_mm"]
-    
-    
-    def send_location(self):
-        pass
+        data = self.get_data()
+
+        self.today_temp_max = data["today"]["temp_max"]
+        self.today_temp_min = data["today"]["temp_min"]
+        self.today_rainfall_mm = data["today"]["rainfall_mm"]
+
+        self.tomorrow_temp_max = data["tomorrow"]["temp_max"]
+        self.tomorrow_temp_min = data["tomorrow"]["temp_min"]
+        self.tomorrow_rainfall_mm = data["tomorrow"]["rainfall_mm"]
+
+        self.day_after_temp_max = data["day_after"]["temp_max"]
+        self.day_after_temp_min = data["day_after"]["temp_min"]
+        self.day_after_rainfall_mm = data["day_after"]["rainfall_mm"]
+
 
     def check_warnings(self):
-        warnings = self.get_data()["warnings"]
+        warnings = self.get_data().get("warnings", {})
 
         for event, info in warnings.items():
-            if info["severity"] != "NONE":
-
+            if info.get("active"):
                 msg = (
                     f"{event.upper()}\n\n"
                     f"Severity: {info['severity']}\n"
                     f"Reason: {info['reason']}"
                 )
-
                 self.show_popup(msg)
-    def show_popup(self, text):
 
+    def show_popup(self, text):
         lbl = Label(
             text=text,
             halign="center",
             valign="middle",
-            text_size=(280, None), 
+            text_size=(300, None),
             size_hint=(None, None),
             size=(340, 200)
         )
-        layout = BoxLayout(
-            padding=[15, 15, 15, 20]  
-        )
+
+        layout = BoxLayout(padding=[15, 15, 15, 20])
         layout.add_widget(lbl)
-        popup = Popup(
-            title="Weather Alert",
-            content=layout,
-            size_hint=(None, None),
-            size=(420, 400),
-            auto_dismiss=True
-        )
 
-        popup.open()
+        # popup = Popup(
+        #     title="Weather Alert",
+        #     content=layout,
+        #     size_hint=(None, None),
+        #     size=(420, 400),
+        #     auto_dismiss=True
+        # )
+        # popup.open()
 
-    
     def show_details(self, day):
+        d = self.get_data()[day]
         text = (
-            f"Humidity: {self.get_data()[day]['humidity']}%\n"
-            f"Wind Speed: {self.get_data()[day]['wind_speed']} km/h\n"
+            f"Humidity: {d['humidity']}%\n"
+            f"Wind Speed: {d['wind_speed']} km/h\n"
         )
 
         Popup(
             title="Weather Details",
             content=Label(text=text),
-            size_hint=(.8,.4)
+            size_hint=(.8, .4)
         ).open()
 
 
 class WeatherApp(App):
     def build(self):
         return WeatherUI()
+
     def on_start(self):
-        self.root.check_warnings()
-        self.root.set_data()
+        print("APP STARTED")
+        Clock.schedule_once(self.debug_start, 1)
+
+    def debug_start(self, dt):
+        print("CALLING send_location()")
+        self.root.send_location() 
 
 
 if __name__ == "__main__":
