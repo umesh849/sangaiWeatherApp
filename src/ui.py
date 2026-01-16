@@ -11,7 +11,7 @@ from kivy.lang import Builder
 from kivy.properties import NumericProperty, StringProperty
 from kivy.core.text import LabelBase
 from kivy.network.urlrequest import UrlRequest
-
+from src.location import get_loc
 import json
 #Change the ip address
 SERVER_IP = "192.168.1.3"
@@ -83,8 +83,8 @@ class WeatherUI(BoxLayout):
         print("SENDING POST REQUEST")  
 
         payload = {
-            "lat": 24.8039,
-            "lon": 93.9420,
+            "lat": get_loc()[0],
+            "lon": get_loc()[1],
             "district": "Imphal East",
             "rainfall_3d": None,
             "soil_moisture": 0.4,
@@ -130,22 +130,22 @@ class WeatherUI(BoxLayout):
 
         self.today_temp_max = data["today"]["temp_max"]
         self.today_temp_min = data["today"]["temp_min"]
-        self.today_rainfall_mm = data["today"]["rainfall_mm"]
+        self.today_rainfall_mm = 0
 
         self.tomorrow_temp_max = data["tomorrow"]["temp_max"]
         self.tomorrow_temp_min = data["tomorrow"]["temp_min"]
-        self.tomorrow_rainfall_mm = data["tomorrow"]["rainfall_mm"]
+        self.tomorrow_rainfall_mm = 0
 
         self.day_after_temp_max = data["day_after"]["temp_max"]
         self.day_after_temp_min = data["day_after"]["temp_min"]
-        self.day_after_rainfall_mm = data["day_after"]["rainfall_mm"]
+        self.day_after_rainfall_mm =0
 
 
     def check_warnings(self):
         warnings = self.get_data().get("warnings", {})
 
         for event, info in warnings.items():
-            if info.get("active"):
+            if info.get("active"):# add not to check
                 msg = (
                     f"{event.upper()}\n\n"
                     f"Severity: {info['severity']}\n"
@@ -165,15 +165,14 @@ class WeatherUI(BoxLayout):
 
         layout = BoxLayout(padding=[15, 15, 15, 20])
         layout.add_widget(lbl)
-
-        # popup = Popup(
-        #     title="Weather Alert",
-        #     content=layout,
-        #     size_hint=(None, None),
-        #     size=(420, 400),
-        #     auto_dismiss=True
-        # )
-        # popup.open()
+        popup = Popup(
+            title="Weather Alert",
+            content=layout,
+            size_hint=(None, None),
+            size=(420, 400),
+            auto_dismiss=True
+         )
+        popup.open()
 
     def show_details(self, day):
         d = self.get_data()[day]
